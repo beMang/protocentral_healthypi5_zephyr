@@ -41,7 +41,6 @@
 #include "hw_module.h"
 #include "cmd_module.h"
 #include "hpi_common_types.h"
-#include "display_module.h"
 
 LOG_MODULE_REGISTER(data_module, LOG_LEVEL_INF);  // Changed from DBG to reduce log spam
 
@@ -1068,7 +1067,7 @@ void data_thread(void)
             {
                 usb_send_count++;
                 sendData(hpi_sensor_data_point.ecg_sample, hpi_sensor_data_point.bioz_sample, hpi_sensor_data_point.ppg_sample_red,
-                         hpi_sensor_data_point.ppg_sample_ir, 0, 0, 0, 0, 0);
+                         hpi_sensor_data_point.ppg_sample_ir, 0, m_hr, 0, m_spo2, 0);
             }
             else if (m_stream_mode == HPI_STREAM_MODE_BLE)
             {

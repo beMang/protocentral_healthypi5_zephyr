@@ -49,7 +49,7 @@
 #include "fs_module.h"
 #include "hpi_common_types.h"
 
-#ifdef CONFIG_DISPLAY
+#ifdef CONFIG_HEALTHYPI_DISPLAY_ENABLED
 #include "display_module.h"
 #endif
 
@@ -87,8 +87,10 @@ volatile uint32_t heartbeat_sampling_workq = 0;
 static const struct device *const wdt_dev = DEVICE_DT_GET(DT_ALIAS(watchdog0));
 static int wdt_channel_id = -1;
 
+#ifdef CONFIG_HEALTHYPI_DISPLAY_ENABLED
 static const struct device *const gpio_keys_dev = DEVICE_DT_GET_ANY(gpio_keys);
 static const struct device *const longpress_dev = DEVICE_DT_GET(DT_NODELABEL(longpress));
+#endif
 uint8_t m_key_pressed = GPIO_KEYPAD_KEY_NONE;
 
 static bool rx_throttled;
@@ -535,10 +537,12 @@ static void gpio_updown_cb_handler(struct input_event *evt, void *user_data)
 #endif
 }
 
+#ifdef CONFIG_HEALTHYPI_DISPLAY_ENABLED
 // Register callback on longpress device output (for OK button short/long press)
 INPUT_CALLBACK_DEFINE(longpress_dev, gpio_keys_cb_handler, NULL);
 // Register callback on gpio_keys device (for UP/DOWN buttons)
 INPUT_CALLBACK_DEFINE(gpio_keys_dev, gpio_updown_cb_handler, NULL);
+#endif
 
 void hw_thread(void)
 {
