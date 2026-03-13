@@ -1,6 +1,6 @@
 # HealthyPi 5 Zephyr Firmware for RP2040 Main MCU
 
-![HealthyPi 5](docs/images/healthypi5.jpg)
+![HealthyPi 5](docs/healthypi5.jpg)
 
 Don't have one? You can pre-order now at [Crowd Supply](https://www.crowdsupply.com/protocentral/healthypi-5)
 
@@ -98,8 +98,6 @@ This product is open source! Please see the LICENSE.md file for more information
 _Getting Started Guide coming soon..._
 
 ## License Information
-
-![License](license_mark.svg)
 
 This product is open source! Both, our hardware and software are open source and licensed under the following licenses:
 
