@@ -68,8 +68,6 @@ LOG_MODULE_REGISTER(data_module, LOG_LEVEL_INF);  // Changed from DBG to reduce 
 #define CES_CMDIF_PKT_STOP 0x0B
 
 #define SAMPLING_FREQ 104 // in Hz.
-#define TEMP_CALC_BUFFER_LENGTH 125
-#define RESP_CALC_BUFFER_LENGTH 125
 
 #define SAMPLE_BUFF_WATERMARK 4
 
@@ -172,12 +170,13 @@ float firState[NUM_TAPS + BLOCK_SIZE - 1];
 int16_t spo2_serial;
 int16_t hr_serial;
 int16_t rr_serial;
-int16_t temp_serial;
+uint16_t temp_serial;
 
 ZBUS_CHAN_DECLARE(hr_chan);
 ZBUS_CHAN_DECLARE(spo2_chan);
 ZBUS_CHAN_DECLARE(resp_rate_chan);
 ZBUS_CHAN_DECLARE(lead_off_chan);  // Lead-off state channel
+ZBUS_CHAN_DECLARE(temp_chan);
 
 // New vars
 
@@ -187,8 +186,6 @@ K_MUTEX_DEFINE(mutex_stream_mode);
 // HR source selection (ECG vs PPG)
 static enum hpi_hr_source m_hr_source = HR_SOURCE_ECG;
 K_MUTEX_DEFINE(mutex_hr_source);
-
-ZBUS_CHAN_DECLARE(resp_rate_chan);
 
 // ============================================================================
 // Lead-Off Detection State Management (UI Layer Only)
@@ -213,6 +210,16 @@ static uint8_t last_valid_rr = 0;          // Last valid respiration rate
 // SpO2 algorithm probe state tracker (initialized once)
 static spo2_probe_state_t spo2_probe_state;
 static bool spo2_probe_state_initialized = false;
+
+static void data_temp_listener(const struct zbus_channel *chan)
+{
+    const struct hpi_temp_t *temp_data = zbus_chan_const_msg(chan);
+    float temp_c = temp_data->temp_c; // Store latest temperature in Celsius
+    temp_serial = (uint16_t)(temp_c * 100); // Convert to fixed-point representation
+    rr_serial = 5; //to test if listeners works (debug)
+}
+
+ZBUS_LISTENER_DEFINE(serial_temp_listener, data_temp_listener);
 
 void hpi_data_set_stream_mode(enum hpi_stream_modes mode)
 {
@@ -319,10 +326,9 @@ void send_ecg_bioz_data_ov3_format(int32_t *ecg_data, int32_t ecg_sample_count, 
     }
 }
 
-void sendData(int32_t ecg_sample, int32_t bioz_sample, int32_t raw_red, int32_t raw_ir, int32_t temp, uint8_t hr,
+void sendData(int32_t ecg_sample, int32_t bioz_sample, int32_t raw_red, int32_t raw_ir, int16_t temp, uint8_t hr,
               uint8_t rr, uint8_t spo2, bool _bioZSkipSample)
 {
-
     DataPacket[0] = ecg_sample;
     DataPacket[1] = ecg_sample >> 8;
     DataPacket[2] = ecg_sample >> 16;
@@ -377,90 +383,6 @@ void sendData(int32_t ecg_sample, int32_t bioz_sample, int32_t raw_red, int32_t 
         // send_rpi_uart(DataPacketFooter, 2);
     }
 }
-
-/*void sendData(int32_t ecg_sample, int32_t bioz_samples, int32_t raw_red, int32_t raw_ir, int32_t temp, uint8_t hr,
-              uint8_t rr, uint8_t spo2, bool _bioZSkipSample)
-{
-
-    DataPacket[0] = ecg_sample;
-    DataPacket[1] = ecg_sample >> 8;
-    DataPacket[2] = ecg_sample >> 16;
-    DataPacket[3] = ecg_sample >> 24;
-
-    DataPacket[4] = bioz_samples;
-    DataPacket[5] = bioz_samples >> 8;
-    DataPacket[6] = bioz_samples >> 16;
-    DataPacket[7] = bioz_samples >> 24;
-
-    if (_bioZSkipSample == false)
-    {
-        DataPacket[8] = 0x00;
-    }
-    else
-    {
-        DataPacket[8] = 0xFF;
-    }
-
-    DataPacket[9] = raw_red;
-    DataPacket[10] = raw_red >> 8;
-    DataPacket[11] = raw_red >> 16;
-    DataPacket[12] = raw_red >> 24;
-
-    DataPacket[13] = raw_ir;
-    DataPacket[14] = raw_ir >> 8;
-    DataPacket[15] = raw_ir >> 16;
-    DataPacket[16] = raw_ir >> 24;
-
-    DataPacket[17] = temp;
-    DataPacket[18] = temp >> 8;
-
-    DataPacket[19] = spo2;
-    DataPacket[20] = hr;
-    DataPacket[21] = rr;
-
-    if (settings_send_usb_enabled)
-    {
-        send_usb_cdc(DataPacketHeader, 5);
-        send_usb_cdc(DataPacket, DATA_LEN);
-        send_usb_cdc(DataPacketFooter, 2);
-    }
-
-    if (settings_send_rpi_uart_enabled)
-    {
-        // send_rpi_uart(DataPacketHeader, 5);
-        // send_rpi_uart(DataPacket, DATA_LEN);
-        // send_rpi_uart(DataPacketFooter, 2);
-    }
-}*/
-
-/*void send_data_text(int32_t ecg_sample, int32_t bioz_samples, int32_t raw_red)
-{
-    char data[100];
-    float f_ecg_sample = (float)ecg_sample / 1000;
-    float f_bioz_sample = (float)bioz_samples / 1000;
-    float f_raw_red = (float)raw_red / 1000;
-
-    sprintf(data, "%.3f\t%.3f\t%.3f\r\n", (double)f_ecg_sample, (double)f_bioz_sample, (double)f_raw_red);
-
-    if (settings_send_usb_enabled)
-    {
-        send_usb_cdc(data, strlen(data));
-    }
-
-    if (settings_send_ble_enabled)
-    {
-        cmdif_send_ble_data(data, strlen(data));
-    }
-}
-
-void send_data_text_1(int32_t in_sample)
-{
-    char data[100];
-    float f_in_sample = (float)in_sample / 1000;
-
-    sprintf(data, "%.3f\r\n", (double)f_in_sample);
-    send_usb_cdc(data, strlen(data));
-}*/
 
 // Start a new session log
 void flush_current_session_logs()
@@ -1067,7 +989,7 @@ void data_thread(void)
             {
                 usb_send_count++;
                 sendData(hpi_sensor_data_point.ecg_sample, hpi_sensor_data_point.bioz_sample, hpi_sensor_data_point.ppg_sample_red,
-                         hpi_sensor_data_point.ppg_sample_ir, 0, m_hr, 0, m_spo2, 0);
+                         hpi_sensor_data_point.ppg_sample_ir, temp_serial, last_valid_ecg_hr, rr_serial, spo2_filtered, 0);
             }
             else if (m_stream_mode == HPI_STREAM_MODE_BLE)
             {
