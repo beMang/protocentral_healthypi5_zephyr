@@ -216,7 +216,6 @@ static void data_temp_listener(const struct zbus_channel *chan)
     const struct hpi_temp_t *temp_data = zbus_chan_const_msg(chan);
     float temp_c = temp_data->temp_c; // Store latest temperature in Celsius
     temp_serial = (uint16_t)(temp_c * 100); // Convert to fixed-point representation
-    rr_serial = 5; //to test if listeners works (debug)
 }
 
 ZBUS_LISTENER_DEFINE(serial_temp_listener, data_temp_listener);
@@ -747,6 +746,7 @@ void data_thread(void)
                         .spo2 = spo2_filtered,
                         .lead_off = ppg_lead_off_state
                     };
+                    spo2_serial = spo2_filtered;
                     zbus_chan_pub(&spo2_chan, &spo2_chan_value, K_NO_WAIT);
                 }
                 
@@ -797,6 +797,7 @@ void data_thread(void)
                             .hr = hr_filtered,
                             .lead_off = ppg_lead_off_state
                         };
+                        hr_serial = hr_filtered;
                         zbus_chan_pub(&hr_chan, &hr_chan_value, K_NO_WAIT);
                     }
                 }
@@ -846,6 +847,7 @@ void data_thread(void)
                             .spo2 = spo2_filtered,  // Keep last valid value
                             .lead_off = ppg_lead_off_state
                         };
+                        spo2_serial = spo2_filtered;
                         zbus_chan_pub(&spo2_chan, &spo2_chan_value, K_NO_WAIT);
                         
                         // Also update PPG HR if it's the active source
@@ -854,6 +856,7 @@ void data_thread(void)
                                 .hr = hr_filtered,  // Keep last valid value
                                 .lead_off = ppg_lead_off_state
                             };
+                            hr_serial = hr_filtered;
                             zbus_chan_pub(&hr_chan, &hr_chan_value, K_NO_WAIT);
                         }
                     }
@@ -897,6 +900,7 @@ void data_thread(void)
                         .lead_off = ecg_lead_off_state
                     };
                     // Use K_NO_WAIT to prevent blocking data thread and causing USB stalling
+                    rr_serial = m_resp_rate;
                     zbus_chan_pub(&resp_rate_chan, &resp_rate_chan_value, K_NO_WAIT);
                 }
 
@@ -915,6 +919,7 @@ void data_thread(void)
                     .hr = hpi_sensor_data_point.hr,
                     .lead_off = ecg_lead_off_state
                 };
+                hr_serial = hpi_sensor_data_point.hr;
                 zbus_chan_pub(&hr_chan, &hr_chan_value, K_NO_WAIT);
             }
 
@@ -949,6 +954,7 @@ void data_thread(void)
                             .hr = last_valid_ecg_hr,  // Keep last valid value
                             .lead_off = ecg_lead_off_state
                         };
+                        hr_serial = last_valid_ecg_hr;
                         zbus_chan_pub(&hr_chan, &hr_chan_value, K_NO_WAIT);
                     }
                     
@@ -956,6 +962,7 @@ void data_thread(void)
                         .resp_rate = last_valid_rr,  // Keep last valid value
                         .lead_off = ecg_lead_off_state
                     };
+                    rr_serial = last_valid_rr;  // Update serial with last valid value for consistency
                     zbus_chan_pub(&resp_rate_chan, &rr_chan_value, K_NO_WAIT);
                 }
                 else if (!ecg_leadoff_raw && ecg_lead_off_state && elapsed_ms >= ECG_LEADOFF_DEBOUNCE_MS) {
@@ -969,6 +976,7 @@ void data_thread(void)
                             .hr = last_valid_ecg_hr,  // Keep last valid value
                             .lead_off = ecg_lead_off_state
                         };
+                        hr_serial = last_valid_ecg_hr;
                         zbus_chan_pub(&hr_chan, &hr_chan_value, K_NO_WAIT);
                     }
                     
@@ -976,6 +984,7 @@ void data_thread(void)
                         .resp_rate = last_valid_rr,  // Keep last valid value
                         .lead_off = ecg_lead_off_state
                     };
+                    rr_serial = last_valid_rr;
                     zbus_chan_pub(&resp_rate_chan, &rr_chan_value, K_NO_WAIT);
                 }
             }
@@ -989,7 +998,7 @@ void data_thread(void)
             {
                 usb_send_count++;
                 sendData(hpi_sensor_data_point.ecg_sample, hpi_sensor_data_point.bioz_sample, hpi_sensor_data_point.ppg_sample_red,
-                         hpi_sensor_data_point.ppg_sample_ir, temp_serial, last_valid_ecg_hr, rr_serial, spo2_filtered, 0);
+                         hpi_sensor_data_point.ppg_sample_ir, temp_serial, hr_serial, rr_serial, spo2_serial, 0);
             }
             else if (m_stream_mode == HPI_STREAM_MODE_BLE)
             {
