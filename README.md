@@ -69,13 +69,13 @@ Use the provided build scripts for display-specific configurations:
 
 ```bash
 # For ILI9488 display variant
-./make_ili9488.sh
+./scripts/make_ili9488.sh
 
 # For ST7796 display variant  
-./make_st7796.sh
+./script/make_st7796.sh
 
 # Clean build
-./clean.sh
+west build -t clean -b healthypi5_rp2040 app
 ```
 
 #### Manual Build Commands
