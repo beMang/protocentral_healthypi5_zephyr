@@ -71,8 +71,6 @@ LOG_MODULE_REGISTER(data_module, LOG_LEVEL_INF);  // Changed from DBG to reduce 
 
 #define SAMPLE_BUFF_WATERMARK 4
 
-K_MSGQ_DEFINE(q_computed_val, sizeof(struct hpi_computed_data_t), 50, 1);
-
 enum hpi5_data_format
 {
     DATA_FMT_OPENVIEW,

@@ -53,7 +53,8 @@ else:
 
 user_port = input("Enter the port to use: ")
 # open the serial port
-ser = serial.Serial(user_port, 9600, timeout=1)
+baudrate = 9600
+ser = serial.Serial(user_port, baudrate, timeout=1)
 print(f"Opened serial port: {ser.name}")
 
 # read data from the serial port
