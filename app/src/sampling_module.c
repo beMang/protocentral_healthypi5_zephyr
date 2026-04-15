@@ -39,13 +39,13 @@ LOG_MODULE_REGISTER(sampling_module, CONFIG_SENSOR_LOG_LEVEL);
 extern const struct device *const afe4400_dev;
 extern const struct device *const max30205_dev;
 
-#define UNIFIED_SAMPLING_INTERVAL_MS 7  // 128 SPS = 7.8ms per sample
+#define UNIFIED_SAMPLING_INTERVAL_MS 8  // 125Hz : 8ms
 
 static uint32_t ppg_sample_counter = 0;
-#define PPG_READ_INTERVAL 2  // Read PPG every 2nd cycle
+#define PPG_READ_INTERVAL 1  // Read PPG every PPG_READ_INTERVAL cycles (e.g., 1 = every cycle, 2 = every 2nd cycle)
 
 // Unified data point queue - 384 entries = 3 seconds buffer at 128 SPS (balanced RAM/stability)
-K_MSGQ_DEFINE(q_hpi_data_sample, sizeof(struct hpi_sensor_data_point_t), 384, 1);
+K_MSGQ_DEFINE(q_hpi_data_sample, sizeof(struct hpi_sensor_data_point_t), 3*125, 1);
 
 // Dedicated work queue for sensor sampling to avoid overloading system workqueue
 // Priority 5 with 5KB stack (needs space for SPI/RTIO operations + safety margin)
@@ -63,22 +63,6 @@ extern struct k_sem sem_ecg_bioz_thread_start;
 static volatile int hpi_sampling_ppg_sample_count = 0;
 
 static struct hpi_sensor_data_point_t hpi_sensor_data_point;
-
-/*static void sensor_ppg_decode(uint8_t *buf, uint32_t buf_len)
-{
-    const struct afe4400_encoded_data *edata = (const struct afe4400_encoded_data *)buf;
-
-    struct hpi_ppg_sensor_data_t ppg_sensor_sample;
-
-    ppg_sensor_sample.ppg_red_sample = edata->raw_sample_red;
-    ppg_sensor_sample.ppg_ir_sample = edata->raw_sample_ir;
-
-    if(k_msgq_put(&q_ppg_sample, &ppg_sensor_sample, K_MSEC(1))!=0)
-    {
-        LOG_ERR("PPG sample queue error");
-        //k_msgq_purge(&q_ppg_sample);
-    }
-}*/
 
 static void sensor_ppg_decode(uint8_t *buf, uint32_t buf_len)
 {
