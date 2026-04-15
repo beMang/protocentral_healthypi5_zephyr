@@ -182,7 +182,7 @@ static enum hpi_stream_modes m_stream_mode = HPI_STREAM_MODE_USB;
 K_MUTEX_DEFINE(mutex_stream_mode);
 
 // HR source selection (ECG vs PPG)
-static enum hpi_hr_source m_hr_source = HR_SOURCE_ECG;
+static enum hpi_hr_source m_hr_source = HR_SOURCE_PPG;
 K_MUTEX_DEFINE(mutex_hr_source);
 
 // ============================================================================
@@ -603,8 +603,8 @@ void data_thread(void)
     last_heartbeat_time = k_uptime_get_32();
 
     // Load HR source setting from filesystem
-    m_hr_source = settings_load_hr_source();
-    LOG_INF("Initialized HR source: %s", m_hr_source == HR_SOURCE_ECG ? "ECG" : "PPG");
+    //m_hr_source = settings_load_hr_source();
+    //LOG_INF("Initialized HR source: %s", m_hr_source == HR_SOURCE_ECG ? "ECG" : "PPG");
 
     // Initialize lead-off timers
     ecg_leadoff_timer = k_uptime_get();
