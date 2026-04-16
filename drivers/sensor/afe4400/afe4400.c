@@ -12,7 +12,7 @@
 
 LOG_MODULE_REGISTER(SENSOR_AFE4400, CONFIG_SENSOR_LOG_LEVEL);
 
-char rf_cf_config = 0x00;
+char rf_cf_config = 0xc2; // CF = 5pF, RF = 500kR
 
 #if DT_NUM_INST_STATUS_OKAY(DT_DRV_COMPAT) == 0
 #warning "AFE4400 driver enabled without any devices"
@@ -136,8 +136,8 @@ static int afe4400_chip_init(const struct device *dev)
     _afe4400_reg_write(dev, CONTROL0, 0x000000);
     _afe4400_reg_write(dev, CONTROL0, 0x000008);
     _afe4400_reg_write(dev, TIAGAIN, 0x000000);
-    _afe4400_reg_write(dev, TIA_AMB_GAIN, (0x0000 << 8) | rf_cf_config); // CF = 5pF, RF = 500kR
-    _afe4400_reg_write(dev, LEDCNTRL, 0x000404); // 4mA for both LEDs
+    _afe4400_reg_write(dev, TIA_AMB_GAIN, (0x0000 << 8) | rf_cf_config);
+    _afe4400_reg_write(dev, LEDCNTRL, 0x001414); // 20mA for both LEDs
     _afe4400_reg_write(dev, CONTROL2, 0x000000); // LED_RANGE=100mA, LED=50mA
     _afe4400_reg_write(dev, CONTROL1, 0x010707); // Timers ON, average 3 samples
     _afe4400_reg_write(dev, PRPCOUNT, 0X001F3F);
