@@ -160,15 +160,40 @@ extern struct k_sem sem_ble_disconnected;
 #define NUM_TAPS 10  /* Number of taps in the FIR filter (length of the moving average window) */
 #define BLOCK_SIZE 4 /* Number of samples processed per block */
 
-float firCoeffs[NUM_TAPS] = {0.990, 0.990, 0.990, 0.990, 0.990, 0.990, 0.990, 0.990, 0.990, 0.990};
-
-arm_fir_instance_f32 sFIR;
-float firState[NUM_TAPS + BLOCK_SIZE - 1];
+// DC blocker for streamed PPG (y[n] = x[n] - x[n-1] + a*y[n-1])
+// a close to 1.0 removes slow baseline drift while preserving pulsatile AC.
+#define PPG_TX_DC_BLOCK_ALPHA 0.995f
 
 int16_t spo2_serial;
 int16_t hr_serial;
 int16_t rr_serial;
 uint16_t temp_serial;
+
+struct ppg_dc_block_filter_t {
+    float x_prev;
+    float y_prev;
+    bool initialized;
+};
+
+static struct ppg_dc_block_filter_t ppg_red_tx_filter;
+static struct ppg_dc_block_filter_t ppg_ir_tx_filter;
+
+static int32_t ppg_dc_block_filter_apply(struct ppg_dc_block_filter_t *filter, int32_t sample)
+{
+    if (!filter->initialized) {
+        filter->x_prev = (float)sample;
+        filter->y_prev = 0.0f;
+        filter->initialized = true;
+        return 0;
+    }
+
+    float x = (float)sample;
+    float y = (x - filter->x_prev + (PPG_TX_DC_BLOCK_ALPHA * filter->y_prev))*(1+PPG_TX_DC_BLOCK_ALPHA)/2; // Gain compensation to preserve AC amplitude
+    filter->x_prev = x;
+    filter->y_prev = y;
+
+    return (int32_t)y;
+}
 
 ZBUS_CHAN_DECLARE(hr_chan);
 ZBUS_CHAN_DECLARE(spo2_chan);
@@ -578,9 +603,6 @@ void data_thread(void)
     int buffer_dec = ((BUFFER_SIZE % FreqS) * 10) / FreqS;
     LOG_INF("Data thread starting - SpO2 buffer size: %d samples (%d.%d seconds), Memory saved: 4KB",
             BUFFER_SIZE, buffer_seconds, buffer_dec);
-
-    /* Initialize the FIR filter */
-    arm_fir_init_f32(&sFIR, NUM_TAPS, firCoeffs, firState, BLOCK_SIZE);
 
 // BLE buffer size: 8 samples = 62ms at 128 Hz (matches typical BLE connection intervals)
 #define BLE_ECG_BUFFER_SIZE 8
@@ -997,13 +1019,16 @@ void data_thread(void)
             if (m_stream_mode == HPI_STREAM_MODE_USB)
             {
                 usb_send_count++;
-                sendData(hpi_sensor_data_point.ecg_sample, hpi_sensor_data_point.bioz_sample, hpi_sensor_data_point.ppg_sample_red,
-                         hpi_sensor_data_point.ppg_sample_ir, temp_serial, hr_serial, rr_serial, spo2_serial, 0);
+                int32_t ppg_red_tx = ppg_dc_block_filter_apply(&ppg_red_tx_filter, hpi_sensor_data_point.ppg_sample_red);
+                int32_t ppg_ir_tx = ppg_dc_block_filter_apply(&ppg_ir_tx_filter, hpi_sensor_data_point.ppg_sample_ir);
+
+                sendData(hpi_sensor_data_point.ecg_sample, hpi_sensor_data_point.bioz_sample, ppg_red_tx,
+                         ppg_ir_tx, temp_serial, hr_serial, rr_serial, spo2_serial, 0);
             }
             else if (m_stream_mode == HPI_STREAM_MODE_BLE)
             {
                 ble_send_count++;
-                int32_t ppg_red_tx = hpi_sensor_data_point.ppg_sample_red;
+                int32_t ppg_red_tx = ppg_dc_block_filter_apply(&ppg_red_tx_filter, hpi_sensor_data_point.ppg_sample_red);
 
                 if (ppg_buffer_count < BLE_ECG_BUFFER_SIZE)
                 {
