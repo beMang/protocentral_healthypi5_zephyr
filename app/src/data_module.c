@@ -51,8 +51,6 @@ LOG_MODULE_REGISTER(data_module, LOG_LEVEL_INF);  // Changed from DBG to reduce 
 #include "fs_module.h"
 #include "ble_module.h"
 
-#include "arm_math.h"
-
 #include "spo2_process.h"
 #include "resp_process.h"
 #include "datalog_module.h"
@@ -79,24 +77,11 @@ enum hpi5_data_format
 
 } hpi5_data_format_t;
 
-#define HPI_OV3_DATA_ECG_BIOZ_LEN 50
-#define HPI_OV3_DATA_PPG_LEN 19
-#define HPI_OV3_DATA_ECG_LEN 8
-#define HPI_OV3_DATA_BIOZ_LEN 4
-#define HPI_OV3_DATA_RED_LEN 8
-#define HPI_OV3_DATA_IR_LEN 8
-
-const uint8_t hpi_ov3_ecg_bioz_packet_header[5] = {CES_CMDIF_PKT_START_1, CES_CMDIF_PKT_START_2, HPI_OV3_DATA_ECG_BIOZ_LEN, 0, CES_CMDIF_TYPE_ECG_BIOZ_DATA};
-const uint8_t hpi_ov3_ppg_packet_header[5] = {CES_CMDIF_PKT_START_1, CES_CMDIF_PKT_START_2, HPI_OV3_DATA_PPG_LEN, 0, CES_CMDIF_TYPE_PPG_DATA};
-const uint8_t hpi_ov3_packet_footer[2] = {0, CES_CMDIF_PKT_STOP};
-
+// Data packet OpenView original format (ECG , Bioz and PPG in the same packet)
 #define DATA_LEN 22
 uint8_t DataPacket[DATA_LEN];
 const char DataPacketFooter[2] = {0, CES_CMDIF_PKT_STOP};
 const char DataPacketHeader[5] = {CES_CMDIF_PKT_START_1, CES_CMDIF_PKT_START_2, DATA_LEN, 0, CES_CMDIF_TYPE_DATA};
-
-uint8_t hpi_ov3_ecg_bioz_data[HPI_OV3_DATA_ECG_BIOZ_LEN];
-uint8_t hpi_ov3_ppg_data[HPI_OV3_DATA_PPG_LEN];
 
 // NOTE: OP mode is now selected at runtime via m_op_mode; compile-time flag removed
 /*static bool settings_send_usb_enabled = false;
@@ -115,24 +100,12 @@ static bool settings_send_rpi_uart_enabled = false;
 struct hpi_sensor_logging_data_t log_buffer[LOG_BUFFER_LENGTH];
 
 uint16_t current_session_ecg_counter = 0;
-uint16_t serial_ecg_counter = 0;
-uint16_t serial_bioz_counter = 0;
-uint16_t serial_ppg_counter = 0;
 uint16_t current_session_bioz_counter = 0;
 uint16_t current_session_ppg_counter = 0;
 uint16_t current_session_log_id = 0;
 char session_id_str[15];
 
 static volatile uint16_t m_resp_rate = 0;
-
-int32_t ecg_serial_streaming[8];
-int sample_buffer_count = 0;
-
-int16_t ppg_serial_streaming[8];
-int ppg_sample_buffer_count = 0;
-
-int32_t resp_serial_streaming[4];
-int resp_sample_buffer_count = 0;
 
 // Externs
 // extern struct k_msgq q_sample;
@@ -274,80 +247,6 @@ enum hpi_hr_source hpi_data_get_hr_source(void)
     return source;
 }
 
-void send_ppg_data_ov3_format()
-{
-    uint8_t pkt_ppg_pos_counter = 0;
-
-    for (int i = 0; i < HPI_OV3_DATA_IR_LEN; i++)
-    {
-        hpi_ov3_ppg_data[pkt_ppg_pos_counter++] = (uint8_t)ppg_serial_streaming[i];
-        hpi_ov3_ppg_data[pkt_ppg_pos_counter++] = (uint8_t)(ppg_serial_streaming[i] >> 8);
-    }
-
-    hpi_ov3_ppg_data[pkt_ppg_pos_counter++] = (uint8_t)spo2_serial;
-
-    hpi_ov3_ppg_data[pkt_ppg_pos_counter++] = (uint8_t)(temp_serial >> 8);
-    hpi_ov3_ppg_data[pkt_ppg_pos_counter++] = (uint8_t)(temp_serial >> 8);
-
-    if (settings_send_usb_enabled)
-    {
-        // Consolidate into single buffer to reduce ring buffer fragmentation
-        static uint8_t consolidated_ppg_packet[5 + HPI_OV3_DATA_PPG_LEN + 2];
-        memcpy(consolidated_ppg_packet, hpi_ov3_ppg_packet_header, 5);
-        memcpy(consolidated_ppg_packet + 5, hpi_ov3_ppg_data, pkt_ppg_pos_counter);
-        memcpy(consolidated_ppg_packet + 5 + pkt_ppg_pos_counter, hpi_ov3_packet_footer, 2);
-        send_usb_cdc(consolidated_ppg_packet, 5 + pkt_ppg_pos_counter + 2);
-    }
-
-    if (settings_send_rpi_uart_enabled)
-    {
-        // send_rpi_uart(DataPacketHeader, 5);
-        // send_rpi_uart(DataPacket, DATA_LEN);
-        // send_rpi_uart(DataPacketFooter, 2);
-    }
-}
-
-void send_ecg_bioz_data_ov3_format(int32_t *ecg_data, int32_t ecg_sample_count, int32_t *bioz_samples, int32_t bioz_sample_count, uint8_t hr, uint8_t rr)
-{
-    uint8_t pkt_ecg_bioz_pos_counter = 0;
-
-    for (int i = 0; i < ecg_sample_count; i++)
-    {
-        hpi_ov3_ecg_bioz_data[pkt_ecg_bioz_pos_counter++] = (uint8_t)ecg_data[i];
-        hpi_ov3_ecg_bioz_data[pkt_ecg_bioz_pos_counter++] = (uint8_t)(ecg_data[i] >> 8);
-        hpi_ov3_ecg_bioz_data[pkt_ecg_bioz_pos_counter++] = (uint8_t)(ecg_data[i] >> 16);
-        hpi_ov3_ecg_bioz_data[pkt_ecg_bioz_pos_counter++] = (uint8_t)(ecg_data[i] >> 24);
-    }
-
-    for (int i = 0; i < bioz_sample_count; i++)
-    {
-        hpi_ov3_ecg_bioz_data[pkt_ecg_bioz_pos_counter++] = (uint8_t)bioz_samples[i];
-        hpi_ov3_ecg_bioz_data[pkt_ecg_bioz_pos_counter++] = (uint8_t)(bioz_samples[i] >> 8);
-        hpi_ov3_ecg_bioz_data[pkt_ecg_bioz_pos_counter++] = (uint8_t)(bioz_samples[i] >> 16);
-        hpi_ov3_ecg_bioz_data[pkt_ecg_bioz_pos_counter++] = (uint8_t)(bioz_samples[i] >> 24);
-    }
-
-    hpi_ov3_ecg_bioz_data[pkt_ecg_bioz_pos_counter++] = hr_serial;
-    hpi_ov3_ecg_bioz_data[pkt_ecg_bioz_pos_counter++] = rr_serial;
-
-    if (settings_send_usb_enabled)
-    {
-        // Consolidate into single buffer to reduce ring buffer fragmentation
-        static uint8_t consolidated_ecg_bioz_packet[5 + HPI_OV3_DATA_ECG_BIOZ_LEN + 2];
-        memcpy(consolidated_ecg_bioz_packet, hpi_ov3_ecg_bioz_packet_header, 5);
-        memcpy(consolidated_ecg_bioz_packet + 5, hpi_ov3_ecg_bioz_data, pkt_ecg_bioz_pos_counter);
-        memcpy(consolidated_ecg_bioz_packet + 5 + pkt_ecg_bioz_pos_counter, hpi_ov3_packet_footer, 2);
-        send_usb_cdc(consolidated_ecg_bioz_packet, 5 + pkt_ecg_bioz_pos_counter + 2);
-    }
-
-    if (settings_send_rpi_uart_enabled)
-    {
-        // send_rpi_uart(DataPacketHeader, 5);
-        // send_rpi_uart(DataPacket, DATA_LEN);
-        // send_rpi_uart(DataPacketFooter, 2);
-    }
-}
-
 void sendData(int32_t ecg_sample, int32_t bioz_sample, int32_t raw_red, int32_t raw_ir, int16_t temp, uint8_t hr,
               uint8_t rr, uint8_t spo2, bool _bioZSkipSample)
 {
@@ -442,105 +341,6 @@ void flush_current_session_logs()
     hpi_log_session_header.session_id = 0;
     hpi_log_session_header.session_size = 0;
     hpi_log_session_header.file_no = 0;
-}
-
-void record_session_add_ppg_point(int16_t ppg_sample)
-{
-    if (current_session_ppg_counter < LOG_BUFFER_LENGTH)
-    {
-        log_buffer[current_session_ppg_counter++].log_ppg_sample = ppg_sample;
-    }
-    else
-    {
-        hpi_log_session_write_file(PPG_DATA);
-        current_session_ppg_counter = 0;
-        log_buffer[current_session_ppg_counter++].log_ppg_sample = ppg_sample;
-    }
-}
-
-// Add a log point to the current session log
-void record_session_add_ecg_point(int32_t *ecg_samples, uint8_t ecg_len, int32_t *bioz_samples, uint8_t bioz_len)
-{
-    if (current_session_ecg_counter < LOG_BUFFER_LENGTH)
-    {
-        // printk("Writing dataa to the file\n");
-        for (int i = 0; i < ecg_len; i++)
-        {
-            // k_sem_give(&log_sem);
-            log_buffer[current_session_ecg_counter++].log_ecg_sample = ecg_samples[i];
-        }
-
-        for (int i = 0; i < bioz_len; i++)
-        {
-            // k_sem_give(&log_sem);
-            log_buffer[current_session_bioz_counter++].log_bioz_sample = bioz_samples[i];
-        }
-    }
-    else
-    {
-
-        hpi_log_session_write_file(ECG_DATA);
-        current_session_ecg_counter = 0;
-        current_session_bioz_counter = 0;
-        for (int i = 0; i < ecg_len; i++)
-        {
-            log_buffer[current_session_ecg_counter++].log_ecg_sample = ecg_samples[i];
-        }
-
-        for (int i = 0; i < bioz_len; i++)
-        {
-            log_buffer[current_session_bioz_counter++].log_bioz_sample = bioz_samples[i];
-        }
-    }
-}
-
-void ppg_buff_for_pkt(int16_t ppg_data_in)
-{
-    if (serial_ppg_counter < HPI_OV3_DATA_IR_LEN)
-    {
-        ppg_serial_streaming[serial_ppg_counter++] = ppg_data_in;
-    }
-    else
-    {
-        send_ppg_data_ov3_format();
-        serial_ppg_counter = 0;
-        memset(ppg_serial_streaming, 0, sizeof(ppg_serial_streaming));
-        ppg_serial_streaming[serial_ppg_counter++] = ppg_data_in;
-    }
-}
-
-void buffer_ecg_data_for_serial(int32_t *ecg_data_in, int ecg_len, int32_t *bioz_data_in, int bioz_len)
-{
-    if (serial_ecg_counter < HPI_OV3_DATA_ECG_LEN)
-    {
-        for (int i = 0; i < ecg_len; i++)
-        {
-            ecg_serial_streaming[serial_ecg_counter++] = ecg_data_in[i];
-        }
-
-        for (int i = 0; i < bioz_len; i++)
-        {
-            resp_serial_streaming[serial_bioz_counter++] = bioz_data_in[i];
-        }
-    }
-    else
-    {
-        // send_data_ov3_format();
-        serial_ecg_counter = 0;
-        serial_bioz_counter = 0;
-        // memset(ecg_serial_streaming,0,sizeof(ecg_serial_streaming));
-        // memset(resp_serial_streaming, 0, sizeof(resp_serial_streaming));
-
-        for (int i = 0; i < ecg_len; i++)
-        {
-            ecg_serial_streaming[serial_ecg_counter++] = ecg_data_in[i];
-        }
-
-        for (int i = 0; i < bioz_len; i++)
-        {
-            resp_serial_streaming[serial_bioz_counter++] = bioz_data_in[i];
-        }
-    }
 }
 
 void data_thread(void)
@@ -1010,11 +810,6 @@ void data_thread(void)
                     zbus_chan_pub(&resp_rate_chan, &rr_chan_value, K_NO_WAIT);
                 }
             }
-
-            /*for (int i = 0; i < 4; i++)
-            {
-                resp_i16_buf[i] = (int16_t)(ecg_bioz_sensor_sample.bioz_samples[i] >> 4);
-            }*/
 
             if (m_stream_mode == HPI_STREAM_MODE_USB)
             {
