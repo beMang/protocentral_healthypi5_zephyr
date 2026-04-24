@@ -589,9 +589,11 @@ void data_thread(void)
 
     int32_t ble_ecg_buffer[BLE_ECG_BUFFER_SIZE];
     int32_t ble_bioz_buffer[BLE_ECG_BUFFER_SIZE];
+    int32_t ble_ppg_buffer[BLE_ECG_BUFFER_SIZE];
 
     uint8_t ecg_buffer_count = 0;
     uint8_t bioz_buffer_count = 0;
+    uint8_t ppg_buffer_count = 0;
 
     int16_t resp_i16_buf[RESP_FILT_BUFFER_SIZE];
     int16_t resp_i16_filt_out[RESP_FILT_BUFFER_SIZE];
@@ -1001,6 +1003,19 @@ void data_thread(void)
             else if (m_stream_mode == HPI_STREAM_MODE_BLE)
             {
                 ble_send_count++;
+                int32_t ppg_red_tx = hpi_sensor_data_point.ppg_sample_red;
+
+                if (ppg_buffer_count < BLE_ECG_BUFFER_SIZE)
+                {
+                    ble_ppg_buffer[ppg_buffer_count++] = ppg_red_tx;
+                }
+                else
+                {
+                    ble_ppg_notify(ble_ppg_buffer, BLE_ECG_BUFFER_SIZE);
+                    ppg_buffer_count = 0;
+                    ble_ppg_buffer[ppg_buffer_count++] = ppg_red_tx;
+                }
+
                 if (ecg_buffer_count < BLE_ECG_BUFFER_SIZE)
                 {
                     ble_ecg_buffer[ecg_buffer_count++] = hpi_sensor_data_point.ecg_sample;

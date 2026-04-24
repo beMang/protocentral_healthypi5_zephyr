@@ -335,14 +335,19 @@ void ble_bioz_notify(int32_t *resp_data, uint8_t len)
 	}
 }
 
-void ble_ppg_notify(int16_t ppg_data)
+void ble_ppg_notify(int32_t *ppg_data, uint8_t len)
 {
-	uint8_t out_data[32];
+	if ((ppg_data == NULL) || (len == 0U)) {
+		return;
+	}
 
-	out_data[0] = (uint8_t)(ppg_data);
-	out_data[1] = (uint8_t)(ppg_data >> 8);
+	// Check return value to prevent blocking data thread
+	// Returns -ENOMEM if BLE buffers full - drop packet instead of blocking
+	int ret = bt_gatt_notify(NULL, &hpi_ppg_resp_service.attrs[1], ppg_data, len * sizeof(int32_t));
 
-	bt_gatt_notify(NULL, &hpi_ppg_resp_service.attrs[1], &out_data, 2);
+	if (ret < 0 && ret != -ENOTCONN) {
+		// BLE stack busy - packet dropped (prevents data thread stall)
+	}
 }
 
 void ble_temp_notify(int16_t temp_val)
