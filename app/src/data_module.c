@@ -83,18 +83,10 @@ uint8_t DataPacket[DATA_LEN];
 const char DataPacketFooter[2] = {0, CES_CMDIF_PKT_STOP};
 const char DataPacketHeader[5] = {CES_CMDIF_PKT_START_1, CES_CMDIF_PKT_START_2, DATA_LEN, 0, CES_CMDIF_TYPE_DATA};
 
-// NOTE: OP mode is now selected at runtime via m_op_mode; compile-time flag removed
-/*static bool settings_send_usb_enabled = false;
-static bool settings_send_ble_enabled = false;
-static bool settings_plot_enabled = true;
-#else
-*/
-static bool settings_send_usb_enabled = true;
-static bool settings_send_ble_enabled = true;
-static bool settings_plot_enabled = true;
-// #endif
-
-static bool settings_send_rpi_uart_enabled = false;
+bool settings_send_usb_enabled = true;
+bool settings_send_ble_enabled = true;
+bool settings_plot_enabled = false;
+bool settings_send_rpi_uart_enabled = false; //set to true for UART data streaming
 
 // struct hpi_sensor_data_t log_buffer[LOG_BUFFER_LENGTH];
 struct hpi_sensor_logging_data_t log_buffer[LOG_BUFFER_LENGTH];
@@ -299,9 +291,9 @@ void sendData(int32_t ecg_sample, int32_t bioz_sample, int32_t raw_red, int32_t 
 
     if (settings_send_rpi_uart_enabled)
     {
-        // send_rpi_uart(DataPacketHeader, 5);
-        // send_rpi_uart(DataPacket, DATA_LEN);
-        // send_rpi_uart(DataPacketFooter, 2);
+        send_rpi_uart(DataPacketHeader, 5);
+        send_rpi_uart(DataPacket, DATA_LEN);
+        send_rpi_uart(DataPacketFooter, 2);
     }
 }
 
@@ -404,7 +396,7 @@ void data_thread(void)
     LOG_INF("Data thread starting - SpO2 buffer size: %d samples (%d.%d seconds), Memory saved: 4KB",
             BUFFER_SIZE, buffer_seconds, buffer_dec);
 
-// BLE buffer size: 8 samples = 62ms at 128 Hz (matches typical BLE connection intervals)
+// BLE buffer size: 8 samples = 64ms at 125 Hz (matches typical BLE connection intervals)
 #define BLE_ECG_BUFFER_SIZE 8
 
 #define RESP_FILT_BUFFER_SIZE 4

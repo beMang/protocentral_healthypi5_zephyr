@@ -24,6 +24,7 @@
 
 
 #include <zephyr/kernel.h>
+#include <zephyr/devicetree.h>
 #include <zephyr/drivers/spi.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/device.h>
@@ -67,6 +68,7 @@ static const struct gpio_dt_spec led_blue = GPIO_DT_SPEC_GET(DT_ALIAS(ledblue), 
 #define ZEPHYR_USER_NODE DT_PATH(zephyr_user)
 
 const struct device *usb_dev = DEVICE_DT_GET_ONE(zephyr_cdc_acm_uart);
+static const struct device *uart0_dev = NULL;  // Cached at init time for UART data streaming
 
 // USB buffer monitoring
 static uint32_t usb_buffer_writes = 0;
@@ -140,6 +142,7 @@ uint8_t global_batt_level = 0;
 
 /*******EXTERNS******/
 extern struct k_msgq q_session_cmd_msg;
+extern bool settings_send_ble_enabled;
 
 /*bool settings_send_usb_enabled = true;
 bool settings_send_ble_enabled = true;
@@ -245,6 +248,21 @@ void send_usb_cdc(const char *buf, size_t len)
     // Only enable TX interrupt if data was successfully written
     if (rb_len > 0) {
         uart_irq_tx_enable(usb_dev);
+    }
+}
+
+void send_rpi_uart(const uint8_t *buf, size_t len)
+{
+    if (buf == NULL || len == 0U) {
+        return;
+    }
+
+    if (uart0_dev == NULL || !device_is_ready(uart0_dev)) {
+        return;
+    }
+
+    for (size_t i = 0; i < len; i++) {
+        uart_poll_out(uart0_dev, buf[i]);
     }
 }
 
@@ -410,6 +428,14 @@ static void usb_init()
 #endif
 
     LOG_INF("USB Init complete");
+    
+    // Initialize UART0 device for UART data streaming (cached to avoid device tree lookups in hot path)
+    uart0_dev = DEVICE_DT_GET(DT_NODELABEL(uart0));
+    if (uart0_dev != NULL && device_is_ready(uart0_dev)) {
+        LOG_INF("UART0 ready for data streaming");
+    } else {
+        LOG_WRN("UART0 not ready for data streaming");
+    }
 }
 
 int hpi_hw_read_temp(float* temp_f, float* temp_c)
@@ -595,7 +621,11 @@ void hw_thread(void)
     }
 
 #ifdef CONFIG_BT
-    ble_module_init();
+    if (settings_send_ble_enabled) {
+        ble_module_init();
+    } else {
+        LOG_INF("BLE disabled by settings (settings_send_ble_enabled=false)");
+    }
 #endif
 
     leds_init();
