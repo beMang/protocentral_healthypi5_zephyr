@@ -269,7 +269,6 @@ void ble_resp_rate_notify(uint16_t resp_rate)
 void ble_ecg_notify_single(int32_t ecg_data)
 {
 	uint8_t out_data[16];
-	int i=0;
 
 	out_data[0] = (uint8_t)ecg_data;
 	out_data[1] = (uint8_t)(ecg_data >> 8);
@@ -282,7 +281,6 @@ void ble_ecg_notify_single(int32_t ecg_data)
 void ble_bioz_notify_single(int32_t resp_data)
 {
 	uint8_t out_data[16];
-	int i=0;
 
 	out_data[0] = (uint8_t)resp_data;
 	out_data[1] = (uint8_t)(resp_data >> 8);

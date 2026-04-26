@@ -74,8 +74,6 @@ static const struct device *uart0_dev = NULL;  // Cached at init time for UART d
 static uint32_t usb_buffer_writes = 0;
 static uint32_t usb_buffer_drops = 0;
 static uint32_t last_usb_log_time = 0;
-static bool usb_host_connected = true;   // Start optimistic - assume host connected, detect disconnect
-static uint32_t last_buffer_drain_time = 0;
 
 // Temperature sensor availability
 static bool temp_sensor_available = false;  // Set at boot, never changes

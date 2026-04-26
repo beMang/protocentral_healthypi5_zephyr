@@ -337,9 +337,6 @@ void flush_current_session_logs()
 
 void data_thread(void)
 {
-    struct hpi_ecg_bioz_sensor_data_t ecg_bioz_sensor_sample;
-    struct hpi_ppg_sensor_data_t ppg_sensor_sample;
-
     struct hpi_sensor_data_point_t hpi_sensor_data_point;
 
     // record_init_session_log();
