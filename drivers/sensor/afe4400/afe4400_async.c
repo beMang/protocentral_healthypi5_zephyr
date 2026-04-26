@@ -59,6 +59,19 @@ static int afe4400_async_sample_fetch(const struct device *dev, int32_t *raw_ir_
         _afe4400_reg_write(dev, TIA_AMB_GAIN, cancel_current | rf_cf_config);
 
         LOG_INF("Ambient light avg: %d, error: %d, cancel current: %d", ambiant_light_avg, error, cancel_current  >> 16);
+
+        //Read LED1 and LED2 values to check saturation
+        uint32_t led1_debug = _afe4400_read_reg(dev, LED1VAL);
+        led1_debug = (uint32_t)(led1_debug << 10);
+        int32_t led1s_debug = (int32_t)led1_debug >> 10;
+
+        uint32_t led2_debug = _afe4400_read_reg(dev, LED2VAL);
+        led2_debug = (uint32_t)(led2_debug << 10);
+        int32_t led2s_debug = (int32_t)led2_debug >> 10;
+
+        if (led1s_debug > 2000000 || led2s_debug > 2000000) {
+            LOG_WRN("Sample saturation detected! LED1=%d, LED2=%d", led1s_debug, led2s_debug);
+        }
     }
 
     _afe4400_reg_write(dev, CONTROL0, 0x000001);
@@ -77,19 +90,6 @@ static int afe4400_async_sample_fetch(const struct device *dev, int32_t *raw_ir_
 
     sample_count++;
     if (sample_count >= 46) sample_count = 0;
-
-    //Read LED1 and LED2 values to check saturation
-    uint32_t led1_debug = _afe4400_read_reg(dev, LED1VAL);
-    led1_debug = (uint32_t)(led1_debug << 10);
-    int32_t led1s_debug = (int32_t)led1_debug >> 10;
-
-    uint32_t led2_debug = _afe4400_read_reg(dev, LED2VAL);
-    led2_debug = (uint32_t)(led2_debug << 10);
-    int32_t led2s_debug = (int32_t)led2_debug >> 10;
-
-    if (led1s_debug > 2000000 || led2s_debug > 2000000) {
-        LOG_WRN("Sample saturation detected! LED1=%d, LED2=%d", led1s_debug, led2s_debug);
-    }
 
     return 0;
 }
