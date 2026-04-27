@@ -182,39 +182,7 @@ void send_usb_cdc(const char *buf, size_t len)
     uint32_t capacity = ring_buf_capacity_get(&ringbuf_usb_cdc);
     uint32_t used = capacity - space;
     
-    // DISABLED: Host detection causing false disconnects and data loss
-    // TODO: Re-enable with proper implementation after baseline stability confirmed
-    /*
-    // Detect USB host connection by monitoring buffer drain
-    static uint32_t last_used = 0;
-    static bool initialized = false;
-    
-    if (!initialized) {
-        last_buffer_drain_time = k_uptime_get_32();
-        initialized = true;
-    }
-    
-    if (used < last_used - 1000) {
-        usb_host_connected = true;
-        last_buffer_drain_time = k_uptime_get_32();
-    }
-    last_used = used;
-    
-    if (k_uptime_get_32() - last_buffer_drain_time > 5000) {
-        usb_host_connected = false;
-    }
-    
-    if (!usb_host_connected && used > (capacity * 80 / 100)) {
-        usb_buffer_drops++;
-        static uint32_t last_disconnect_log = 0;
-        if (k_uptime_get_32() - last_disconnect_log > 5000) {
-            LOG_WRN("USB host not detected, buffer %u/%u bytes - dropping data", 
-                    used, capacity);
-            last_disconnect_log = k_uptime_get_32();
-        }
-        return;
-    }
-    */
+    //Eventually implement host detection
     
     if (space < len) {
         // Buffer full - drop packet to avoid USB stalls
@@ -685,6 +653,10 @@ void hw_thread(void)
     float m_temp_f = 0;
     float m_temp_c = 0;
 
+    //Turn LED off
+    gpio_pin_set_dt(&led_blue, 0);
+    gpio_pin_set_dt(&led_green, 0);
+
     for (;;)
     {
         static uint32_t hw_loop_count = 0;
@@ -714,7 +686,6 @@ void hw_thread(void)
             wdt_feed(wdt_dev, wdt_channel_id);
         }
 
-        gpio_pin_toggle_dt(&led_blue);
         k_sleep(K_MSEC(1000));
     }
 }

@@ -44,7 +44,7 @@ extern const struct device *const max30205_dev;
 static uint32_t ppg_sample_counter = 0;
 #define PPG_READ_INTERVAL 1  // Read PPG every PPG_READ_INTERVAL cycles (e.g., 1 = every cycle, 2 = every 2nd cycle)
 
-// Unified data point queue - 384 entries = 3 seconds buffer at 128 SPS (balanced RAM/stability)
+// Unified data point queue - 375 entries = 3 seconds buffer at 125 SPS (balanced RAM/stability)
 K_MSGQ_DEFINE(q_hpi_data_sample, sizeof(struct hpi_sensor_data_point_t), 3*125, 1);
 
 // Dedicated work queue for sensor sampling to avoid overloading system workqueue
